@@ -43,5 +43,6 @@ Loader::Loader(const char* filepath) {
 
 int main() {
     Loader load("../models/model.safetensors");
+    std::cout << load.weight_map.size();
     return 0;
 }

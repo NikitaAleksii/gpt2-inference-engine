@@ -4,8 +4,6 @@
 
 class Tensor {
 private:
-    std::vector<int> shape;                     // shape of the tensor
-    float* buffer;                              // pointer to the tensor
     std::vector<int> strides;                   // number of array positions you must skip in physical memory to move one step forward along a specific dimension
     bool owns_buffer;                           // true - activation; false - points to weights
 
@@ -19,25 +17,19 @@ private:
         }
     }
 
-    // Computes the size of a flat array for N-dimensional tensor
-    size_t compute_size() {
-        size_t size = 1;
-        for (int i = 0; i < this->shape.size(); i++) {
-            size *= this->shape[i];
-        }
-        return size;
-    }
-
     // Row-major mapping to index 
     size_t offset(const std::vector<int>& idx) const {
         size_t offset = 0;
-        for (int i = 0; i < idx.size(); i++) {
+        for (size_t i = 0; i < idx.size(); i++) {
             offset += this->strides[i] * idx[i];
         }
         return offset;
     }
 
 public:
+    float* buffer;                              // pointer to the tensor
+    std::vector<int> shape;                     // shape of the tensor
+
     // General constructor
     Tensor() {
         this->buffer      = nullptr;
@@ -140,6 +132,15 @@ public:
     // Returns an element stored in a flat tensor
     float& at(const std::vector<int>& idx) {
         return this->buffer[offset(idx)];
+    }
+
+    // Computes the size of a flat array for N-dimensional tensor
+    size_t compute_size() {
+        size_t size = 1;
+        for (size_t i = 0; i < this->shape.size(); i++) {
+            size *= this->shape[i];
+        }
+        return size;
     }
 
 };

@@ -41,7 +41,7 @@ public:
 
     // Copy constructor
     Tensor(const Tensor& other) {
-        // Copy `shape`, `stride`, and `ows_buffer` to a new tensor
+        // Copy `shape`, `stride`, and `owns_buffer` to a new tensor
         this->shape       = other.shape;
         this->stride      = other.stride;
         this->owns_buffer = true;
@@ -76,4 +76,47 @@ public:
 
         return *this;
     }
+
+    // Move assignment
+    Tensor(Tensor&& other) noexcept {
+        // Copy `shape`, `stride`, and `ows_buffer` to a new tensor
+        this->shape       = other.shape;
+        this->stride      = other.stride;
+        this->owns_buffer = other.owns_buffer;
+
+        // Steal the pointer
+        this->buffer      = other.buffer;
+
+        // Empty previous pointer
+        other.buffer      = nullptr;
+        other.owns_buffer = false;
+    }
+
+    // Move assignment operator
+    Tensor& operator=(Tensor&& other) noexcept {
+        // Guard against self-moving
+        if (this == &other) {
+            return *this;
+        }
+
+        // First check if we can delete data in memory and then assign `owns_buffer` to true
+        if (owns_buffer) {
+            delete[] buffer;
+        }
+
+        // Copy `shape`, `stride`, and `ows_buffer` to a new tensor
+        this->shape       = other.shape;
+        this->stride      = other.stride;
+        this->owns_buffer = other.owns_buffer;
+
+        // Steal the pointer
+        this->buffer      = other.buffer;
+
+        // Empty previous pointer
+        other.buffer      = nullptr;
+        other.owns_buffer = false;
+
+        return *this;
+    }
+
 };

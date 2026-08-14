@@ -1,11 +1,11 @@
 #include "ops.hpp"
 
 // Computes the dot product of two tensors `A` and `B` and outputs results into tensor `out`
-void matmul(Tensor& A, Tensor& B, Tensor& out) {
+void matmul(const Tensor& A, const Tensor& B, Tensor& out) {
     // Represent flat arrays into matrix-like form
-    std::mdspan A_view(A.buffer, A.shape[0], A.shape[1]);
-    std::mdspan B_view(B.buffer, B.shape[0], B.shape[1]);
-    std::mdspan out_view(out.buffer, out.shape[0], out.shape[1]);
+    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
+    std::mdspan B_view(B.data(), B.shape[0], B.shape[1]);
+    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
 
     // Get dimensions of the final tensor
     const int M = A_view.extent(0);
@@ -31,28 +31,28 @@ void matmul(Tensor& A, Tensor& B, Tensor& out) {
 }
 
 // Adds two tensors `A` and `B` and outputs the result in `out`
-void add(Tensor&A, Tensor& B, Tensor& out) {
+void add(const Tensor&A, const Tensor& B, Tensor& out) {
     if (A.compute_size() != B.compute_size() || out.compute_size() != A.compute_size()) {
         throw std::runtime_error(std::string("Sizes don't match"));
     }
 
     size_t total_elements = A.compute_size();
     for (size_t i = 0; i < total_elements; i++) {
-        out.buffer[i] = A.buffer[i] + B.buffer[i]; 
+        out.data()[i] = A.data()[i] + B.data()[i]; 
     }
 }
 
 // Normalizes layer
-void layernorm(Tensor& A, const Tensor& bias, const Tensor& gain, Tensor& out) {
+void layernorm(const Tensor& A, const Tensor& bias, const Tensor& gain, Tensor& out) {
     if (A.compute_size() != out.compute_size()) {
         throw std::runtime_error(std::string("Sizes don't match"));
     }
 
     // Represent flat arrays into matrix-like form
-    std::mdspan A_view(A.buffer, A.shape[0], A.shape[1]);
-    std::mdspan bias_view(bias.buffer, bias.shape[0]);
-    std::mdspan gain_view(gain.buffer, gain.shape[0]);
-    std::mdspan out_view(out.buffer, out.shape[0], out.shape[1]);
+    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
+    std::mdspan bias_view(bias.data(), bias.shape[0]);
+    std::mdspan gain_view(gain.data(), gain.shape[0]);
+    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
 
     const size_t M = A_view.extent(0);
     const size_t N = A_view.extent(1);
@@ -90,8 +90,8 @@ float gelu(const float x) {
 
 void gelu(const Tensor& A, Tensor& out) {
     // Represent flat arrays into matrix-like form 
-    std::mdspan A_view(A.buffer, A.shape[0], A.shape[1]);
-    std::mdspan out_view(out.buffer, out.shape[0], out.shape[1]);
+    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
+    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
     const size_t M = A_view.extent(0);
     const size_t N = A_view.extent(1);
 
@@ -104,12 +104,12 @@ void gelu(const Tensor& A, Tensor& out) {
 
 // Implements softmax
 void softmax(const Tensor& A, Tensor& out) {
-    std::mdspan A_view(A.buffer, A.shape[0], A.shape[1]);
-    std::mdspan out_view(out.buffer, out.shape[0], out.shape[1]);
+    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
+    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
     const size_t M = A_view.extent(0);
     const size_t N = A_view.extent(1);
 
-    for (int r = 0; r < M; r++) {
+    for (size_t r = 0; r < M; r++) {
         // Stabilize exponents since they because infinity after crossing a certain threshold
         float m = A_view[r, 0];
         for (size_t c = 1; c < N; c++) {
@@ -128,6 +128,21 @@ void softmax(const Tensor& A, Tensor& out) {
         // Normalize
         for (size_t c = 0; c < N; c++) {
             out_view[r, c] /= sum;
+        }
+    }
+}
+
+// Transpose operation
+void transpose(const Tensor& A, Tensor& out) {
+    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
+    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
+
+    const size_t M = A_view.extent(0);
+    const size_t N = A_view.extent(1);
+
+    for (size_t i = 0; i < M; i++) {
+        for (size_t j = 0; j < N; j++) {
+            out_view[j, i] = A_view[i, j];
         }
     }
 }

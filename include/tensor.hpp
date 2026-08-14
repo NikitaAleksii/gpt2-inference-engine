@@ -1,10 +1,13 @@
+#pragma once
+
 #include <vector>
 #include <memory>
 #include <algorithm>
 
 class Tensor {
 private:
-    std::vector<int> strides;                   // number of array positions you must skip in physical memory to move one step forward along a specific dimension
+    float* buffer;                              // pointer to the tensor
+    std::vector<size_t> strides;                   // number of array positions you must skip in physical memory to move one step forward along a specific dimension
     bool owns_buffer;                           // true - activation; false - points to weights
 
     // Computes strides
@@ -17,18 +20,12 @@ private:
         }
     }
 
-    // Row-major mapping to index 
-    size_t offset(const std::vector<int>& idx) const {
-        size_t offset = 0;
-        for (size_t i = 0; i < idx.size(); i++) {
-            offset += this->strides[i] * idx[i];
-        }
-        return offset;
-    }
-
 public:
-    float* buffer;                              // pointer to the tensor
     std::vector<int> shape;                     // shape of the tensor
+
+    // Raw buffer access (buffer itself stays private — pointer can't be reassigned)
+    float* data() { return buffer; }
+    const float* data() const { return buffer; }
 
     // General constructor
     Tensor() {
@@ -129,13 +126,27 @@ public:
         return *this;
     }
 
+    // Row-major mapping to index 
+    size_t offset(const std::vector<int>& idx) const {
+        size_t offset = 0;
+        for (size_t i = 0; i < idx.size(); i++) {
+            offset += this->strides[i] * idx[i];
+        }
+        return offset;
+    }
+
     // Returns an element stored in a flat tensor
     float& at(const std::vector<int>& idx) {
         return this->buffer[offset(idx)];
     }
 
+    // read-only access — works on const Tensors like the weights
+    const float& at(const std::vector<int>& idx) const {
+        return buffer[offset(idx)];
+    }
+
     // Computes the size of a flat array for N-dimensional tensor
-    size_t compute_size() {
+    size_t compute_size() const {
         size_t size = 1;
         for (size_t i = 0; i < this->shape.size(); i++) {
             size *= this->shape[i];

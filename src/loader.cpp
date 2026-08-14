@@ -39,10 +39,4 @@ Loader::Loader(const char* filepath) {
 
         weight_map[it.key()] = Tensor(shape, addr, byte_offset);
     }
-} 
-
-int main() {
-    Loader load("../models/model.safetensors");
-    std::cout << load.weight_map.size();
-    return 0;
 }

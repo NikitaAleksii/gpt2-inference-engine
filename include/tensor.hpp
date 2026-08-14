@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <memory>
 #include <algorithm>
 
 class Tensor {
@@ -86,7 +85,7 @@ public:
 
     // Move assignment
     Tensor(Tensor&& other) noexcept {
-        // Copy `shape`, `stride`, and `ows_buffer` to a new tensor
+        // Copy `shape`, `strides`, and `owns_buffer` to a new tensor
         this->shape       = other.shape;
         compute_strides();
         this->owns_buffer = other.owns_buffer;
@@ -111,7 +110,7 @@ public:
             delete[] buffer;
         }
 
-        // Copy `shape`, `stride`, and `ows_buffer` to a new tensor
+        // Copy `shape`, `strides`, and `owns_buffer` to a new tensor
         this->shape       = other.shape;
         compute_strides();
         this->owns_buffer = other.owns_buffer;

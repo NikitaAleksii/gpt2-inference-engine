@@ -1,5 +1,8 @@
 #include "loader.hpp"
 
+#include <cstring>
+#include <string>
+
 Loader::Loader(const char* filepath) {
     // Open file descriptor
     int fd = open(filepath, O_RDONLY);

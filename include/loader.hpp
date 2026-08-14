@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>

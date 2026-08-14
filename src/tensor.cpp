@@ -1,4 +1,3 @@
-#include <iostream>
 #include "tensor.hpp"
 
 // Creates a tensor with newly allocated memory used for activations

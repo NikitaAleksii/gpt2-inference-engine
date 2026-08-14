@@ -1,25 +1,33 @@
 #include "ops.hpp"
 
-// Computes the dot product of two tensors `A` and `B` and outputs results into tensor `out`
-void matmul(const Tensor& A, const Tensor& B, Tensor& out) {
-    // Represent flat arrays into matrix-like form
-    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
-    std::mdspan B_view(B.data(), B.shape[0], B.shape[1]);
-    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
+#include <mdspan>
+#include <cmath>
+#include <numbers>
+#include <stdexcept>
 
-    // Get dimensions of the final tensor
+// mdspan views over a tensor's flat buffer
+static auto view2d(Tensor& t)       { return std::mdspan(t.data(), t.shape[0], t.shape[1]); }
+static auto view2d(const Tensor& t) { return std::mdspan(t.data(), t.shape[0], t.shape[1]); }
+static auto view1d(const Tensor& t) { return std::mdspan(t.data(), t.shape[0]); }
+
+// Matrix product: out[M, N] = A[M, K] @ B[K, N]
+void matmul(const Tensor& A, const Tensor& B, Tensor& out) {
+    auto A_view   = view2d(A);
+    auto B_view   = view2d(B);
+    auto out_view = view2d(out);
+
     const int M = A_view.extent(0);
     const int K = A_view.extent(1);
     const int N = B_view.extent(1);
-    
-    // Clear out the destination
+
+    // Clear the destination
     for (int r = 0; r < M; r++) {
         for (int c = 0; c < N; c++) {
             out_view[r, c] = 0.0f;
         }
     }
 
-    // Compute the dot product
+    // i-k-j order keeps the inner loop unit-stride over B and out (cache-friendly)
     for (int r = 0; r < M; r++) {
         for (int i = 0; i < K; i++) {
             const float A_c = A_view[r, i];
@@ -30,68 +38,66 @@ void matmul(const Tensor& A, const Tensor& B, Tensor& out) {
     }
 }
 
-// Adds two tensors `A` and `B` and outputs the result in `out`
-void add(const Tensor&A, const Tensor& B, Tensor& out) {
+// Element-wise sum: out = A + B
+void add(const Tensor& A, const Tensor& B, Tensor& out) {
     if (A.compute_size() != B.compute_size() || out.compute_size() != A.compute_size()) {
         throw std::runtime_error(std::string("Sizes don't match"));
     }
 
     size_t total_elements = A.compute_size();
     for (size_t i = 0; i < total_elements; i++) {
-        out.data()[i] = A.data()[i] + B.data()[i]; 
+        out.data()[i] = A.data()[i] + B.data()[i];
     }
 }
 
-// Normalizes layer
+// Layer normalization over the last dimension, per row
 void layernorm(const Tensor& A, const Tensor& bias, const Tensor& gain, Tensor& out) {
     if (A.compute_size() != out.compute_size()) {
         throw std::runtime_error(std::string("Sizes don't match"));
     }
 
-    // Represent flat arrays into matrix-like form
-    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
-    std::mdspan bias_view(bias.data(), bias.shape[0]);
-    std::mdspan gain_view(gain.data(), gain.shape[0]);
-    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
+    auto A_view    = view2d(A);
+    auto bias_view = view1d(bias);
+    auto gain_view = view1d(gain);
+    auto out_view  = view2d(out);
 
     const size_t M = A_view.extent(0);
     const size_t N = A_view.extent(1);
 
     for (size_t r = 0; r < M; r++) {
-        // Compute mean
+        // Mean
         float sum = 0.0f;
         for (size_t c = 0; c < N; c++) {
             sum += A_view[r, c];
         }
         float mean = sum / N;
 
-        // Calculate varience
+        // Variance
         sum = 0;
         for (size_t c = 0; c < N; c++) {
             sum += (A_view[r, c] - mean) * (A_view[r, c] - mean);
         }
-        float varience = sum / N;
+        float variance = sum / N;
 
-        // Normalize
-        float den = std::sqrt(varience + EPSILON);
+        // Normalize, scale, shift
+        float den = std::sqrt(variance + EPSILON);
         for (size_t c = 0; c < N; c++) {
-            float num = A_view[r, c] - mean; 
+            float num = A_view[r, c] - mean;
             out_view[r, c] = (num / den) * gain_view[c] + bias_view[c];
         }
     }
 }
 
-// Implements gelu function
+// GELU (tanh approximation, as used by GPT-2)
 float gelu(const float x) {
+    static const float k = std::sqrt(2.0f / std::numbers::pi_v<float>);
     float cube = x * x * x;
-    float pi_2 = std::sqrt(2 / std::numbers::pi);
-    return 0.5f * x * (1.0f + std::tanh(pi_2 * (x + 0.044715f * cube)));
+    return 0.5f * x * (1.0f + std::tanh(k * (x + 0.044715f * cube)));
 }
 
 void gelu(const Tensor& A, Tensor& out) {
-    // Represent flat arrays into matrix-like form 
-    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
-    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
+    auto A_view   = view2d(A);
+    auto out_view = view2d(out);
     const size_t M = A_view.extent(0);
     const size_t N = A_view.extent(1);
 
@@ -102,21 +108,21 @@ void gelu(const Tensor& A, Tensor& out) {
     }
 }
 
-// Implements softmax
+// Row-wise softmax (numerically stable via max subtraction)
 void softmax(const Tensor& A, Tensor& out) {
-    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
-    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
+    auto A_view   = view2d(A);
+    auto out_view = view2d(out);
     const size_t M = A_view.extent(0);
     const size_t N = A_view.extent(1);
 
     for (size_t r = 0; r < M; r++) {
-        // Stabilize exponents since they because infinity after crossing a certain threshold
+        // Row max, subtracted to keep exp() from overflowing
         float m = A_view[r, 0];
         for (size_t c = 1; c < N; c++) {
             if (A_view[r, c] > m)
                 m = A_view[r, c];
         }
-        
+
         // Accumulate denominator
         float sum = 0.0f;
         for (size_t c = 0; c < N; c++) {
@@ -132,10 +138,10 @@ void softmax(const Tensor& A, Tensor& out) {
     }
 }
 
-// Transpose operation
+// 2-D transpose: out[j, i] = A[i, j]
 void transpose(const Tensor& A, Tensor& out) {
-    std::mdspan A_view(A.data(), A.shape[0], A.shape[1]);
-    std::mdspan out_view(out.data(), out.shape[0], out.shape[1]);
+    auto A_view   = view2d(A);
+    auto out_view = view2d(out);
 
     const size_t M = A_view.extent(0);
     const size_t N = A_view.extent(1);
